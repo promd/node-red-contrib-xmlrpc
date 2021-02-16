@@ -12,8 +12,9 @@ module.exports = function(RED) {
 
     // Node state
     var node = this;
+    node.status({fill:"green",shape:"ring",text:'initiating'});
     this.client = xmlrpc.createClient({ host: this.host, port: this.port, path: this.path});
-
+    
     this.methodCall = function(method, params, cb) {
       node.client.methodCall(method, params, cb);
     };
@@ -30,6 +31,7 @@ module.exports = function(RED) {
     var node = this;
     if(!this.clientConn) {
       this.error(RED._('missing client config'));
+      node.status({fill:"red",shape:"ring",text:'missing client config'});
       return;
     }
 
@@ -39,9 +41,14 @@ module.exports = function(RED) {
       node.clientConn.methodCall(method,params,function(error, value){
         if(error) {
           node.error(RED._(error.message));
+          node.status({fill:"red",shape:"ring",text:error.message});
+          msg.payload = '';
+          msg.error   = error;
+          node.send(msg);
           return;
         }
         msg.payload = value;
+        node.status({fill:"green",shape:"ring",text:'Message received.'});
         node.send(msg);
       });
     });
@@ -54,6 +61,7 @@ module.exports = function(RED) {
     RED.nodes.createNode(this,n);
     var node = this;
 
+    node.status({fill:"green",shape:"ring",text:'initiating'});
     // Configuration options passed by Node Red
     this.host = n.host;
     this.port = parseInt(n.port);
@@ -61,11 +69,13 @@ module.exports = function(RED) {
     this.server = xmlrpc.createServer({ host: this.host, port: this.port });
     this.server.on('NotFound', function(method, params) {
       node.warn(RED._('`'+method + '` method invoked, but not found'));
+      node.status({fill:"yellow",shape:"ring",text:'`'+method + '` method invoked, but not found'});
     });
 
     this.listen = function(method, callback) {
       if(node.server.listenerCount(method) !== 0) {
-        node.warn(RED._('The method `' + method + '` is already registered.'));
+        node.error(RED._('The method `' + method + '` is already registered.'));
+        node.status({fill:"red",shape:"ring",text:'`'+method + '` is already registered.'});
         return;
       }
       node.server.on(method, callback);
@@ -102,15 +112,21 @@ module.exports = function(RED) {
 
     if(!this.serverConn) {
       this.error(RED._('missing server config'));
+      node.status({fill:"red",shape:"ring",text:'missing server config'});
       return;
     }
 
     this.serverConn.listen(this.method, function(err, params, cb){
       if(err) {
         node.error(RED._(err.message));
+        node.status({fill:"red",shape:"ring",text:err.message});
+        msg.payload = '';
+        msg.error   = error;
+        node.send(msg);
         return;
       }
       var msg = {method: node.method, params: params, _xmlrpc: {cb: cb}};
+      node.status({fill:"green",shape:"ring",text:'Message received.'});
       node.send(msg);
     });
 
@@ -131,6 +147,7 @@ module.exports = function(RED) {
     this.on('input', function(msg){
       if(!msg._xmlrpc || !msg._xmlrpc.cb) {
         node.warn(RED._('Missing xmlrpc callback'));
+        node.status({fill:"red",shape:"ring",text:'Missing xmlrpc callback'});
         return;
       }
       var err = msg.err||null;
